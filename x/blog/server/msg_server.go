@@ -38,3 +38,34 @@ func (s serverImpl) CreatePost(goCtx context.Context, request *blog.MsgCreatePos
 
 	return &blog.MsgCreatePostResponse{}, nil
 }
+
+func (s serverImpl) CreateComment(goCtx context.Context, request *blog.MsgCreateComment) (*blog.MsgCreateCommentResponse, error) {
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	postStore := prefix.NewStore(ctx.KVStore(s.storeKey), blog.KeyPrefix(blog.PostKey))
+
+	// check if the specified post exists
+	postKey := []byte(request.PostSlug)
+	if !postStore.Has(postKey) {
+		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "post with slug %s not found", request.PostSlug)
+	}
+
+	comment := blog.Comment{
+		PostSlug: request.PostSlug,
+		Author:   request.Author,
+		Body:     request.Body,
+	}
+
+	bz, err := s.cdc.Marshal(&comment)
+	if err != nil {
+		return nil, err
+	}
+
+	commentKey := generateCommentKey(request.PostSlug)
+
+	commentStore := prefix.NewStore(ctx.KVStore(s.storeKey), blog.KeyPrefix(blog.CommentKey))
+
+	commentStore.Set(commentKey, bz)
+
+	return &blog.MsgCreateCommentResponse{}, nil
+}
